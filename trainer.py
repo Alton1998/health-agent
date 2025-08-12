@@ -1,6 +1,7 @@
+import logging
+
 import torch.cuda
-import transformers
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 from peft import LoraConfig, get_peft_model
 from transformers import (
     AutoTokenizer,
@@ -10,8 +11,9 @@ from transformers import (
     Trainer, TrainingArguments,
     EarlyStoppingCallback
 )
-import logging
 
+torch.manual_seed(42)
+torch.autograd.set_detect_anomaly(True)
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,31 +34,48 @@ for name, module in model.named_modules():
     print(name)
 
 # Load datasets
-train_dataset = load_dataset("json", data_files="tokenized_train_data.jsonl", split="train")
-test_dataset = load_dataset("json", data_files="tokenized_test_data.jsonl", split="train")
+# train_dataset = load_dataset("json", data_files="tokenized_train_data.jsonl", split="train")
+# test_dataset = load_dataset("json", data_files="tokenized_test_data.jsonl", split="train")
+
+dataset = load_from_disk("./health-agent-dataset")
+print(dataset)
+split_dataset = dataset["train"].train_test_split(test_size=0.2)
+train_dataset = split_dataset["train"]
+test_dataset = split_dataset["test"]
 
 print(f"Train dataset size: {len(train_dataset)}")
 print(f"Test dataset size: {len(test_dataset)}")
 
-# Tokenize the data
-def tokenize_function(example):
-    # Clean the text by removing problematic Unicode characters
-    text = example["text"]
-            # .replace("\uff5c", "|").replace("\u2581", "_"))
-    
-    # Tokenize
-    result = tokenizer(
-        text,
-        truncation=True,
-        max_length=3600,
-        padding="max_length",
-        return_tensors=None
-    )
-    result["labels"] = result["input_ids"].copy()
-    return result
 
-train_dataset = train_dataset.map(tokenize_function, remove_columns=["text"])
-test_dataset = test_dataset.map(tokenize_function, remove_columns=["text"])
+def tokenize_function(example):
+    messages = example["messages"]
+
+    # Apply chat template to format the conversation
+    formatted_text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=False  # Or True, depending on your training goal
+    )
+
+    # Tokenize with truncation to max_length=300
+    result = tokenizer(
+        formatted_text,
+        truncation=True,
+        max_length=1500,
+        padding="max_length",
+        return_tensors="pt"
+    )
+
+    # Set labels for training (ignoring padding tokens)
+    result["labels"] = result["input_ids"].clone()
+    result["labels"][result["attention_mask"] == 0] = -100
+
+    return {k: v.squeeze(0) for k, v in result.items()}  # remove batch dim
+
+
+
+train_dataset = train_dataset.map(tokenize_function, remove_columns=['id', 'query', 'answers', 'tools', 'messages'])
+test_dataset = test_dataset.map(tokenize_function, remove_columns=['id', 'query', 'answers', 'tools', 'messages'])
 
 # QLoRA Configuration
 bnb_config = BitsAndBytesConfig(
@@ -78,15 +97,7 @@ model = AutoModelForCausalLM.from_pretrained(
 peft_config = LoraConfig(
     r=8,
     lora_alpha=16,
-    target_modules=[
-        # "q_proj",
-        # "k_proj",
-        # "v_proj",
-        # "o_proj",
-        "gate_proj",
-        "up_proj",
-        "down_proj",
-    ],
+    target_modules=["q_proj", "v_proj", "gate_proj", "up_proj"],
     lora_dropout=0.1,
     bias="none",
     task_type="CAUSAL_LM",
@@ -116,13 +127,15 @@ training_args = TrainingArguments(
     logging_steps=1,
     eval_strategy="steps",
     eval_steps=5,
-    save_steps=10,
+    save_steps=5,
     save_total_limit=2,
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",
     greater_is_better=False,
     report_to="none",
     dataloader_pin_memory=False,
+    max_grad_norm=0.3,
+    optim="paged_adamw_32bit"
 )
 
 # Regular Trainer
