@@ -6,7 +6,7 @@ import torch
 from peft import PeftModel
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
-
+torch.manual_seed(42)
 def load_finetuned_model(
         model_path="health-agent-finetuned (1)/health-agent-finetuned/checkpoint-best",
         base_model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
@@ -298,7 +298,7 @@ Following are the tools provided to you:
         },
         {
             "content": (
-                "Can you provide detailed information about the 'Omron BP786N' blood pressure monitor? "
+                "Can you provide detailed information about the 'Omron BP786N' blood pressure medical device? "
                 "Also, my father is experiencing dizziness and blurred vision — can you analyze these symptoms?"
             ),
             "role": "user"
@@ -367,6 +367,16 @@ Following are the tools provided to you:
     print("Generating response...")
     start_time = time.time()
     response_text = generate_response(model, tokenizer, start_bp_test_prompt)
+    end_time = time.time()
+
+    print(f"Model response:\n{response_text}\n")
+    print(f"Time taken: {end_time - start_time:.2f} seconds\n")
+
+    extract_function_calls(response_text)
+
+    print("Generating response...")
+    start_time = time.time()
+    response_text = generate_response(model, tokenizer, medical_device_prompt)
     end_time = time.time()
 
     print(f"Model response:\n{response_text}\n")
