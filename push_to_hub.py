@@ -3,7 +3,7 @@ from peft import PeftModel
 from transformers import AutoTokenizer, BitsAndBytesConfig, AutoModelForCausalLM
 from huggingface_hub import login
 
-# login("")
+login("")
 
 def push_finetuned_model_to_hf(
         model_path="health-agent-finetuned (1)/health-agent-finetuned/checkpoint-best",
@@ -27,7 +27,7 @@ def push_finetuned_model_to_hf(
 
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_name,
-        quantization_config=bnb_config,
+        # quantization_config=bnb_config,
         device_map="auto",
         trust_remote_code=True,
     )
@@ -49,7 +49,7 @@ def push_finetuned_model_to_hf(
 
 if __name__ == "__main__":
     push_finetuned_model_to_hf(
-        model_path="health-agent-finetuned (1)/health-agent-finetuned/checkpoint-best",
+        model_path="agent/health-agent-finetuned/checkpoint-best",
         base_model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
-        hf_repo_id="aldsouza/health-agent-complete",merge=False
+        hf_repo_id="aldsouza/health-agent-rkllm-compatible",merge=True
     )

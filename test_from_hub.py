@@ -1,4 +1,5 @@
 import json
+import time
 
 import torch
 from regex import regex
@@ -6,7 +7,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 torch.manual_seed(11)
 model_name = "aldsouza/health-agent"
-# model_name = "aldsouza/health-agent-merged"
+# model_name = "aldsouza/health-agent-merged-fp16"
+model_name = "aldsouza/health-agent-lora-rkllm-compatible"
 
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16).to("cuda")
@@ -265,6 +267,7 @@ inputs = tokenizer.apply_chat_template(
 ).to(model.device)
 
 with torch.no_grad():
+    start = time.time()
     outputs = model.generate(
         **inputs,
         max_new_tokens=4096,
@@ -274,6 +277,8 @@ with torch.no_grad():
     response = tokenizer.decode(outputs[0])
 
     print(tokenizer.decode(outputs[0]))
+    end = time.time()
+    print(f"Response:{end-start}")
 
 inputs = tokenizer.apply_chat_template(
     different_user_prompt,

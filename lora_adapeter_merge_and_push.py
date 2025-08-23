@@ -7,9 +7,9 @@ from huggingface_hub import login
 # login("")  # Replace with your actual HF token
 
 def merge_lora_and_push(
-        model_path="health-agent-finetuned (1)/health-agent-finetuned/checkpoint-best",
+        model_path="agent/health-agent-finetuned/checkpoint-best",
         base_model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
-        hf_repo_id="aldsouza/health-agent-merged"
+        hf_repo_id="aldsouza/health-agent-lora-rkllm-compatible"
 ):
     """
     1. Load base model in FP16
