@@ -20,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class AgentClient:
-    def __init__(self, base_url="http://10.37.101.57:8080"):
+    def __init__(self, base_url="http://10.114.241.57:8080"):
         self.base_url = base_url
         self.session = requests.Session()
         logger.info(f"AgentClient initialized with base URL: {base_url}")
@@ -249,10 +249,28 @@ Following are the tools provided to you:
             
             logger.info("Processing speech with Vosk...")
             print("Processing speech with Vosk...")
-            text = self.recognizer.recognize_vosk(audio)
-            logger.info(f"Voice recognition successful: {repr(text)}")
-            print(f"Recognized: {text}")
-            return text
+            raw_result = self.recognizer.recognize_vosk(audio)
+            logger.info(f"Voice recognition successful: {repr(raw_result)}")
+            
+            # Extract text from Vosk JSON response
+            try:
+                if isinstance(raw_result, str):
+                    result_data = json.loads(raw_result)
+                else:
+                    result_data = raw_result
+                
+                text = result_data.get("text", "")
+                logger.info(f"Extracted text: {repr(text)}")
+                print(f"Recognized: {text}")
+                return text
+            except (json.JSONDecodeError, AttributeError) as e:
+                logger.warning(f"Failed to parse Vosk response: {e}, using raw result")
+                # Fallback: if it's already a string, use it directly
+                if isinstance(raw_result, str):
+                    return raw_result
+                else:
+                    return str(raw_result)
+                    
         except sr.UnknownValueError:
             logger.warning("Could not understand audio")
             print("Could not understand audio")
@@ -267,10 +285,28 @@ Following are the tools provided to you:
         try:
             audio = self.audio_queue.get(timeout=1)
             logger.info("Processing queued audio with Vosk...")
-            text = self.recognizer.recognize_vosk(audio)
-            logger.info(f"Queued voice recognition successful: {repr(text)}")
-            print(f"Recognized: {text}")
-            return text
+            raw_result = self.recognizer.recognize_vosk(audio)
+            logger.info(f"Queued voice recognition successful: {repr(raw_result)}")
+            
+            # Extract text from Vosk JSON response
+            try:
+                if isinstance(raw_result, str):
+                    result_data = json.loads(raw_result)
+                else:
+                    result_data = raw_result
+                
+                text = result_data.get("text", "")
+                logger.info(f"Extracted text: {repr(text)}")
+                print(f"Recognized: {text}")
+                return text
+            except (json.JSONDecodeError, AttributeError) as e:
+                logger.warning(f"Failed to parse Vosk response: {e}, using raw result")
+                # Fallback: if it's already a string, use it directly
+                if isinstance(raw_result, str):
+                    return raw_result
+                else:
+                    return str(raw_result)
+                    
         except queue.Empty:
             logger.debug("No audio in queue")
             return None

@@ -6,12 +6,330 @@ from regex import regex
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 torch.manual_seed(11)
-model_name = "aldsouza/health-agent"
+# model_name = "aldsouza/health-agent"
 # model_name = "aldsouza/health-agent-merged-fp16"
 model_name = "aldsouza/health-agent-lora-rkllm-compatible"
 
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16).to("cuda")
+
+health_management_tools = [
+    # Schedule Management Tools
+    {
+        "name": "schedule_auto_type_from_name",
+        "description": "Automatically determine the type of schedule item based on the name provided.",
+        "parameters": {
+            "name": {
+                "description": "Name of the schedule item to auto-type.",
+                "type": "str",
+                "default": "Morning Medication"
+            }
+        }
+    },
+    {
+        "name": "schedule_validate_time_for_test",
+        "description": "Validate if the specified time is appropriate for a medical test.",
+        "parameters": {
+            "test_type": {
+                "description": "Type of medical test to validate timing for.",
+                "type": "str",
+                "default": "blood_pressure"
+            },
+            "proposed_time": {
+                "description": "Proposed time for the test in HH:MM format.",
+                "type": "str",
+                "default": "09:00"
+            }
+        }
+    },
+    {
+        "name": "schedule_create_routine",
+        "description": "Create a new health routine with specified activities and timing.",
+        "parameters": {
+            "routine_name": {
+                "description": "Name of the routine to create.",
+                "type": "str",
+                "default": "Morning Health Check"
+            },
+            "activities": {
+                "description": "List of activities to include in the routine.",
+                "type": "list[str]",
+                "default": ["blood_pressure", "medication", "exercise"]
+            },
+            "schedule_times": {
+                "description": "List of times for each activity in HH:MM format.",
+                "type": "list[str]",
+                "default": ["08:00", "08:30", "09:00"]
+            }
+        }
+    },
+    {
+        "name": "schedule_edit_routine",
+        "description": "Edit an existing health routine with new parameters.",
+        "parameters": {
+            "routine_id": {
+                "description": "ID of the routine to edit.",
+                "type": "str",
+                "default": "routine_001"
+            },
+            "new_activities": {
+                "description": "Updated list of activities for the routine.",
+                "type": "list[str]",
+                "default": ["blood_pressure", "medication", "exercise", "hydration"]
+            },
+            "new_times": {
+                "description": "Updated list of times for each activity.",
+                "type": "list[str]",
+                "default": ["08:00", "08:30", "09:00", "10:00"]
+            }
+        }
+    },
+    {
+        "name": "schedule_delete_routine",
+        "description": "Delete a health routine by its ID.",
+        "parameters": {
+            "routine_id": {
+                "description": "ID of the routine to delete.",
+                "type": "str",
+                "default": "routine_001"
+            }
+        }
+    },
+    {
+        "name": "schedule_list_routines",
+        "description": "List all available health routines for the patient.",
+        "parameters": {
+            "patient_id": {
+                "description": "ID of the patient to list routines for.",
+                "type": "str",
+                "default": "patient_001"
+            }
+        }
+    },
+    {
+        "name": "schedule_update_meal_times",
+        "description": "Update meal times for medication scheduling optimization.",
+        "parameters": {
+            "breakfast_time": {
+                "description": "Breakfast time in HH:MM format.",
+                "type": "str",
+                "default": "08:00"
+            },
+            "lunch_time": {
+                "description": "Lunch time in HH:MM format.",
+                "type": "str",
+                "default": "12:30"
+            },
+            "dinner_time": {
+                "description": "Dinner time in HH:MM format.",
+                "type": "str",
+                "default": "18:00"
+            }
+        }
+    },
+    {
+        "name": "schedule_list_medications",
+        "description": "List all medications and their scheduled times for a patient.",
+        "parameters": {
+            "patient_id": {
+                "description": "ID of the patient to list medications for.",
+                "type": "str",
+                "default": "patient_001"
+            }
+        }
+    },
+
+    # Appointment Management Tools
+    {
+        "name": "appointment_get_slots",
+        "description": "Get available appointment slots for a specific date and provider.",
+        "parameters": {
+            "provider_id": {
+                "description": "ID of the healthcare provider.",
+                "type": "str",
+                "default": "provider_001"
+            },
+            "date": {
+                "description": "Date to check for available slots (YYYY-MM-DD format).",
+                "type": "str",
+                "default": "2024-01-15"
+            },
+            "appointment_type": {
+                "description": "Type of appointment needed.",
+                "type": "str",
+                "default": "consultation"
+            }
+        }
+    },
+    {
+        "name": "appointment_create",
+        "description": "Create a new appointment with a healthcare provider.",
+        "parameters": {
+            "patient_id": {
+                "description": "ID of the patient scheduling the appointment.",
+                "type": "str",
+                "default": "patient_001"
+            },
+            "provider_id": {
+                "description": "ID of the healthcare provider.",
+                "type": "str",
+                "default": "provider_001"
+            },
+            "date_time": {
+                "description": "Date and time for the appointment (YYYY-MM-DD HH:MM format).",
+                "type": "str",
+                "default": "2024-01-15 10:00"
+            },
+            "appointment_type": {
+                "description": "Type of appointment.",
+                "type": "str",
+                "default": "consultation"
+            }
+        }
+    },
+    {
+        "name": "appointment_list_upcoming",
+        "description": "List all upcoming appointments for a patient.",
+        "parameters": {
+            "patient_id": {
+                "description": "ID of the patient to list appointments for.",
+                "type": "str",
+                "default": "patient_001"
+            },
+            "days_ahead": {
+                "description": "Number of days ahead to look for appointments.",
+                "type": "int",
+                "default": 30
+            }
+        }
+    },
+    {
+        "name": "appointment_update",
+        "description": "Update an existing appointment with new details.",
+        "parameters": {
+            "appointment_id": {
+                "description": "ID of the appointment to update.",
+                "type": "str",
+                "default": "appt_001"
+            },
+            "new_date_time": {
+                "description": "New date and time for the appointment.",
+                "type": "str",
+                "default": "2024-01-15 11:00"
+            },
+            "new_type": {
+                "description": "New type of appointment.",
+                "type": "str",
+                "default": "follow_up"
+            }
+        }
+    },
+    {
+        "name": "appointment_cancel",
+        "description": "Cancel an existing appointment.",
+        "parameters": {
+            "appointment_id": {
+                "description": "ID of the appointment to cancel.",
+                "type": "str",
+                "default": "appt_001"
+            },
+            "reason": {
+                "description": "Reason for cancellation.",
+                "type": "str",
+                "default": "patient_request"
+            }
+        }
+    },
+
+    # Communication Tools
+    {
+        "name": "message_send",
+        "description": "Send a message to a healthcare provider or care team member.",
+        "parameters": {
+            "recipient_id": {
+                "description": "ID of the message recipient.",
+                "type": "str",
+                "default": "provider_001"
+            },
+            "message_content": {
+                "description": "Content of the message to send.",
+                "type": "str",
+                "default": "Patient reports feeling better after medication adjustment."
+            },
+            "priority": {
+                "description": "Priority level of the message (low, medium, high, urgent).",
+                "type": "str",
+                "default": "medium"
+            }
+        }
+    },
+    {
+        "name": "message_attach",
+        "description": "Attach a file or document to a message.",
+        "parameters": {
+            "message_id": {
+                "description": "ID of the message to attach file to.",
+                "type": "str",
+                "default": "msg_001"
+            },
+            "file_path": {
+                "description": "Path to the file to attach.",
+                "type": "str",
+                "default": "/documents/health_report.pdf"
+            },
+            "file_type": {
+                "description": "Type of file being attached.",
+                "type": "str",
+                "default": "pdf"
+            }
+        }
+    },
+    {
+        "name": "careteam_get",
+        "description": "Get information about the patient's care team members.",
+        "parameters": {
+            "patient_id": {
+                "description": "ID of the patient to get care team for.",
+                "type": "str",
+                "default": "patient_001"
+            }
+        }
+    },
+
+    # Camera and Documentation Tools
+    {
+        "name": "camera_device_open_capture",
+        "description": "Open device camera and capture a photo for medical documentation.",
+        "parameters": {
+            "camera_type": {
+                "description": "Type of camera to use (front, back, external).",
+                "type": "str",
+                "default": "back"
+            },
+            "capture_purpose": {
+                "description": "Purpose of the photo capture (wound_documentation, medication_verification, etc.).",
+                "type": "str",
+                "default": "wound_documentation"
+            }
+        }
+    },
+    {
+        "name": "camera_five_in_one_open_capture",
+        "description": "Open specialized five-in-one medical camera and capture comprehensive medical images.",
+        "parameters": {
+            "capture_mode": {
+                "description": "Capture mode for the five-in-one camera (full_exam, specific_area, etc.).",
+                "type": "str",
+                "default": "full_exam"
+            },
+            "patient_id": {
+                "description": "ID of the patient for the capture.",
+                "type": "str",
+                "default": "patient_001"
+            }
+        }
+    }
+]
 
 medical_tools = [
     {
@@ -171,7 +489,7 @@ You are an intelligent AI assistant that uses available tools (functions) to hel
 - Do NOT respond with explanations or natural language outside the JSON block unless explicitly instructed.
 
 Following are the tools provided to you:
-{json.dumps(medical_tools, indent=2)}
+{json.dumps(health_management_tools, indent=2)}
 """
 
 # Example prompt using the medical tools
@@ -258,8 +576,20 @@ start_bp_test_prompt = [
     }
 ]
 
+health_management_prompt = [
+    {
+        "content": system_prompt,
+        "role": "system"
+    },
+    {
+        "content": (
+            "Create a morning health routine for patient_001 that includes blood pressure monitoring at 8:00 AM, morning medication at 8:30 AM, and light exercise at 9:00 AM. Then schedule a follow-up appointment with Dr. Smith (provider_001) for next Tuesday at 2:00 PM to discuss the patient's recent health improvements. Also send a message to the care team letting them know the new routine has been established and attach the patient's latest health report from last week."        ),
+        "role": "user"
+    }
+]
+
 inputs = tokenizer.apply_chat_template(
-    messages,
+    health_management_prompt,
     add_generation_prompt=True,
     tokenize=True,
     return_dict=True,
@@ -280,94 +610,94 @@ with torch.no_grad():
     end = time.time()
     print(f"Response:{end-start}")
 
-inputs = tokenizer.apply_chat_template(
-    different_user_prompt,
-    add_generation_prompt=True,
-    tokenize=True,
-    return_dict=True,
-    return_tensors="pt",
-).to(model.device)
-
-with torch.no_grad():
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=4096,
-        temperature=0.7,
-    )
-
-    response = tokenizer.decode(outputs[0])
-    pattern = r'''
-    \{                      # Opening brace of the function block
-    \s*"name"\s*:\s*"([^"]+)"\s*,      # Capture the function name
-    \s*"arguments"\s*:\s*(\{            # Capture the arguments JSON object starting brace
-    (?:[^{}]++ | (?2))*?                # Recursive matching for balanced braces (PCRE syntax)
-    \})                                # Closing brace of arguments
-    \s*\}                             # Closing brace of the function block
-    '''
-
-    matches = regex.findall(pattern, response, regex.VERBOSE)
-
-    for i, (func_name, args_json) in enumerate(matches, 1):
-        print(f"Function {i}: {func_name}")
-        print("Arguments:")
-        print(args_json)
-        print("-" * 40)
-
-    print(tokenizer.decode(outputs[0]))
-
-inputs = tokenizer.apply_chat_template(
-    missing_info_user_prompt,
-    add_generation_prompt=True,
-    tokenize=True,
-    return_dict=True,
-    return_tensors="pt",
-).to(model.device)
-
-with torch.no_grad():
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=4096,
-        temperature=0.7,
-    )
-
-    response = tokenizer.decode(outputs[0])
-
-    print(tokenizer.decode(outputs[0]))
-
-inputs = tokenizer.apply_chat_template(
-    start_bp_test_prompt,
-    add_generation_prompt=True,
-    tokenize=True,
-    return_dict=True,
-    return_tensors="pt",
-).to(model.device)
-
-with torch.no_grad():
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=4096,
-        temperature=0.7,
-    )
-
-    response = tokenizer.decode(outputs[0])
-
-    print(tokenizer.decode(outputs[0]))
-
-inputs = tokenizer.apply_chat_template(
-    medical_device_prompt,
-    add_generation_prompt=True,
-    tokenize=True,
-    return_dict=True,
-    return_tensors="pt",
-).to(model.device)
-
-with torch.no_grad():
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=4096,
-        temperature=0.7,
-    )
-
-    response = tokenizer.decode(outputs[0])
-
-    print(tokenizer.decode(outputs[0]))
+# inputs = tokenizer.apply_chat_template(
+#     different_user_prompt,
+#     add_generation_prompt=True,
+#     tokenize=True,
+#     return_dict=True,
+#     return_tensors="pt",
+# ).to(model.device)
+#
+# with torch.no_grad():
+#     outputs = model.generate(
+#         **inputs,
+#         max_new_tokens=4096,
+#         temperature=0.7,
+#     )
+#
+#     response = tokenizer.decode(outputs[0])
+#     pattern = r'''
+#     \{                      # Opening brace of the function block
+#     \s*"name"\s*:\s*"([^"]+)"\s*,      # Capture the function name
+#     \s*"arguments"\s*:\s*(\{            # Capture the arguments JSON object starting brace
+#     (?:[^{}]++ | (?2))*?                # Recursive matching for balanced braces (PCRE syntax)
+#     \})                                # Closing brace of arguments
+#     \s*\}                             # Closing brace of the function block
+#     '''
+#
+#     matches = regex.findall(pattern, response, regex.VERBOSE)
+#
+#     for i, (func_name, args_json) in enumerate(matches, 1):
+#         print(f"Function {i}: {func_name}")
+#         print("Arguments:")
+#         print(args_json)
+#         print("-" * 40)
+#
+#     print(tokenizer.decode(outputs[0]))
+#
+# inputs = tokenizer.apply_chat_template(
+#     missing_info_user_prompt,
+#     add_generation_prompt=True,
+#     tokenize=True,
+#     return_dict=True,
+#     return_tensors="pt",
+# ).to(model.device)
+#
+# with torch.no_grad():
+#     outputs = model.generate(
+#         **inputs,
+#         max_new_tokens=4096,
+#         temperature=0.7,
+#     )
+#
+#     response = tokenizer.decode(outputs[0])
+#
+#     print(tokenizer.decode(outputs[0]))
+#
+# inputs = tokenizer.apply_chat_template(
+#     start_bp_test_prompt,
+#     add_generation_prompt=True,
+#     tokenize=True,
+#     return_dict=True,
+#     return_tensors="pt",
+# ).to(model.device)
+#
+# with torch.no_grad():
+#     outputs = model.generate(
+#         **inputs,
+#         max_new_tokens=4096,
+#         temperature=0.7,
+#     )
+#
+#     response = tokenizer.decode(outputs[0])
+#
+#     print(tokenizer.decode(outputs[0]))
+#
+# inputs = tokenizer.apply_chat_template(
+#     medical_device_prompt,
+#     add_generation_prompt=True,
+#     tokenize=True,
+#     return_dict=True,
+#     return_tensors="pt",
+# ).to(model.device)
+#
+# with torch.no_grad():
+#     outputs = model.generate(
+#         **inputs,
+#         max_new_tokens=4096,
+#         temperature=0.7,
+#     )
+#
+#     response = tokenizer.decode(outputs[0])
+#
+#     print(tokenizer.decode(outputs[0]))
