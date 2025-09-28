@@ -1,0 +1,25 @@
+# Distributed Training Requirements
+# Install with: pip install -r distributed_requirements.txt
+
+# Core PyTorch with CUDA support
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Transformers and related
+transformers>=4.30.0
+datasets>=2.12.0
+accelerate>=0.20.0
+peft>=0.4.0
+
+# Quantization
+bitsandbytes>=0.39.0
+
+# Utilities
+tqdm>=4.65.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Optional: For better performance
+# nvidia-ml-py3  # For GPU monitoring
+# tensorboard    # For logging and visualization
